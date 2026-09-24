@@ -73,9 +73,9 @@ $('refresh').onclick=()=>exam?refresh():init();
 async function init(){
   $('refresh').disabled=true;setStatus('読み込み中…');
   try{
-    const [er,cr]=await Promise.all([fetch('exam.json',{cache:'no-store'}),fetch('campuses.json',{cache:'no-store'})]);
-    if(!er.ok||!cr.ok)throw Error();
-    const [catalog,campuses]=await Promise.all([er.json(),cr.json()]);
+    const [catalog,cr]=await Promise.all([CurrentExam.load(),fetch('campuses.json',{cache:'no-store'})]);
+    if(!cr.ok)throw Error();
+    const campuses=await cr.json();
     if(!campus||!Object.hasOwn(campuses,campus)){
       setStatus('校舎一覧から校舎を選び、「実施用一覧」を開いてください。',true);$('back').hidden=true;return;
     }

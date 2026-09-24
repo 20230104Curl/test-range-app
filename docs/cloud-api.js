@@ -17,6 +17,7 @@
     const result = await response.json();
     if (result.token) { sessions.set(data.campus, result.token); delete result.token; }
     if (result.status === 403) sessions.delete(data.campus);
+    if (result.code === 'EXAM_CHANGED') window.CurrentExam?.expire();
     return new Response(JSON.stringify(result), {status:result.status || 200, headers:{'Content-Type':'application/json'}});
   };
 })();

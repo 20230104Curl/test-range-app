@@ -35,7 +35,7 @@ function render(){
 document.querySelectorAll('[data-grade]').forEach(b=>b.onclick=()=>{grade=b.dataset.grade;params.set('grade',grade);history.replaceState(null,'','?'+params);if(exam)render();});
 async function init(){
   try{
-    const response=await fetch('exam.json',{cache:'no-store'});if(!response.ok)throw Error();exam=await response.json();
+    exam=await CurrentExam.load();
     document.getElementById('exam-title').textContent=exam.title;document.title=exam.title+'｜範囲表一覧';render();document.getElementById('status').textContent='';
     const campus=params.get('campus');if(campus){const back=document.getElementById('back');back.href='index.html?'+new URLSearchParams({campus,view:'student'});back.textContent='中学校別へ';}
   }catch{document.getElementById('status').textContent='範囲表を読み込めませんでした。画面を再読み込みしてください。';}

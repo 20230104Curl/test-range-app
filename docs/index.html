@@ -21,7 +21,9 @@ main{max-width:1420px;display:grid;grid-template-columns:210px minmax(0,1fr);ali
 @media(min-width:601px){.student-mode main{padding-bottom:16px}.student-columns .student-subject{padding:10px 16px}.student-columns .selection{padding:6px 0}}
 </style>
 <style>@media(max-width:1200px){header .top{flex-wrap:wrap}.header-actions{margin-left:auto;max-width:100%}.mode{flex-wrap:wrap;justify-content:flex-end}}</style>
-</head>
+<style>
+.teacher-row{grid-template-columns:68px minmax(0,1fr) 104px;gap:12px}.subject-save{grid-column:3;grid-row:1;display:grid;gap:5px;align-self:center}.subject-save button{background:var(--blue);color:white;padding:8px 10px;min-width:92px}.subject-state{font-size:.8rem;line-height:1.4;margin:0;padding:4px 6px;border-radius:6px;overflow-wrap:anywhere}.subject-save .resolve-conflict{font-size:.8rem;background:white;color:var(--blue);padding:6px;min-width:0}.alternate-field{grid-column:2/4}.teacher-row{padding:14px 0}@media(max-width:680px){.teacher-row{grid-template-columns:48px minmax(0,1fr);gap:8px}.subject-save{grid-column:2;grid-row:auto;display:flex;align-items:center;flex-wrap:wrap}.subject-save button{min-width:84px}.alternate-field{grid-column:1/-1}}
+</style></head>
 <body>
 <header><div class="top"><div><h1 id="exam-heading">定期テスト模擬</h1></div><div class="header-actions"><div class="brand-label">実力判定テスト範囲確定APP</div><nav class="mode" aria-label="画面の切り替え"><a href="campuses.html">校舎一覧</a><button id="admin" aria-pressed="false">校舎管理</button><button id="teacher" aria-pressed="true">教師入力</button><button id="student" aria-pressed="false">中学校別</button><a id="execution-list" href="execution.html" target="_blank" rel="noopener">実施用一覧</a><a id="all-ranges" href="ranges.html" target="_blank" rel="noopener">範囲表</a></nav></div></div></header>
 
@@ -32,7 +34,7 @@ main{max-width:1420px;display:grid;grid-template-columns:210px minmax(0,1fr);ali
 <p id="no-schools" class="notice" hidden>この学年の中学校は未設定です。校舎管理で在籍する学年を設定してください。</p>
 <p id="message" class="status-line" role="status" aria-live="polite"></p>
 <div id="student-summary" class="student-summary" hidden></div>
-<section id="teacher-layout" class="teacher-panel"><h2 id="teacher-heading"></h2><p class="hint">各教科の指定数を選択してください。別版も指定できます。</p><div id="teacher-rows"></div><div class="batch-save"><p id="save-state" class="state" role="status" aria-live="polite"></p><button id="save" class="primary">保存</button></div></section>
+<section id="teacher-layout" class="teacher-panel"><h2 id="teacher-heading"></h2><p class="hint">各教科の指定数を選び、教科ごとに保存できます。５教科まとめて保存もできます。</p><div id="teacher-rows"></div><div class="batch-save"><p id="save-state" class="state" role="status" aria-live="polite"></p><button id="save" class="primary">５教科まとめて保存</button></div></section>
 
 </div>
 </main>
@@ -59,14 +61,16 @@ function selectionCount(id){return EXAM.selectionCounts[grade]?.[id]||2;}
 function commonUnits(id){return EXAM.common[grade]?.[id]||[];}
 function pageLabel(u){if(u[4])return u[4];return (u[2]?u[2]+'　':'')+(u[3]?'P'+u[3]:'');}
 function valid(id,r){if(!r)return false;const codes=r.codes||[];return Array.isArray(codes)&&new Set(codes).size===codes.length&&codes.every(c=>SUBJECTS[id].units[grade].some(u=>u[0]===c))&&(r.kind==='alternate'?codes.length<selectionCount(id)&&typeof r.text==='string'&&r.text.trim().length>0&&r.text.length<=500:codes.length===selectionCount(id));}
-function record(id){const r=db.records[key(id)];return valid(id,r)?r:null;}
+function rawRecord(id){return db.records[key(id)]||(id==='social'?db.records[school+':'+grade+':social']:null)||null;}
+function record(id){const r=rawRecord(id);return valid(id,r)?r:null;}
 function savedDraft(id){const r=record(id);return {kind:r?.kind==='alternate'?'alternate':'units',codes:r?.codes?.slice()||[],text:r?.kind==='alternate'?r.text:''};}
-function loadDraft(){draft=Object.fromEntries(ORDER.map(id=>[id,savedDraft(id)]));}
+function loadDraft(){draft=Object.fromEntries(ORDER.map(id=>[id,savedDraft(id)]));subjectMessages={};conflictSubjects=new Set();batchMessage='';}
 function normalized(r){return r.kind==='alternate'?{kind:'alternate',codes:[...r.codes].sort(),text:r.text.trim()}:{kind:'units',codes:[...r.codes].sort()};}
-function dirty(){return ORDER.some(id=>JSON.stringify(normalized(draft[id]))!==JSON.stringify(normalized(savedDraft(id))));}
+function subjectDirty(id){return JSON.stringify(normalized(draft[id]))!==JSON.stringify(normalized(savedDraft(id)));}
+function dirty(){return ORDER.some(subjectDirty);}
 function hasUnsaved(){if(!ready)return false;return mode==='admin'?adminDirty():mode==='teacher'&&dirty();}
-function leave(){return !hasUnsaved()||confirm('まだ保存していない変更があります。変更を取り消して画面を切り替えますか？');}
-let revision=0,canEdit=false,ready=false;
+function leave(){if(saveBusy)return false;return !hasUnsaved()||confirm('まだ保存していない変更があります。変更を取り消して画面を切り替えますか？');}
+let revision=0,canEdit=false,ready=false,saveBusy=false,subjectMessages={},conflictSubjects=new Set(),batchMessage='';
 window.addEventListener('exam-changed',()=>{ready=false;canEdit=false;});
 async function persist(next){
 try{if(!campusId)throw Error('校舎一覧から校舎を選んでください。');
@@ -90,21 +94,75 @@ section.append(node('h3','',info.name+(info.provisional&&(saved?.codes?.length||
 if(saved){commonUnits(id).forEach(u=>section.append(selectionNode(u)));info.units[grade].filter(u=>(saved.codes||[]).includes(u[0])).forEach(u=>section.append(selectionNode(u)));if(saved.kind==='alternate')section.append(node('strong','alternate-label','別版'),node('p','alternate-text',saved.text));}
 else section.append(node('p','state','未決定'));(index<3?left:right).append(section);});
 }
-function updateSaveState(){const count=ORDER.filter(id=>valid(id,draft[id])).length,changed=dirty();$('save').disabled=count!==5;$('save-state').className='state '+(changed?'save-pending':count===5?'save-success':'');$('save-state').textContent=changed?'未保存の変更があります'+(count<5?'（'+count+'／５教科 入力済み）':''):count===5?'✓ 保存済み':count+'／５教科 入力済み。各教科の範囲を入力してください。';}
-function toggleCode(id,code){const d=draft[id];if(d.codes.includes(code))d.codes=d.codes.filter(c=>c!==code);else if(d.codes.length<(d.kind==='alternate'?selectionCount(id)-1:selectionCount(id)))d.codes.push(code);$('message').textContent='';renderTeacherRows();}
-function toggleAlternate(id){draft[id].kind=draft[id].kind==='alternate'?'units':'alternate';$('message').textContent='';renderTeacherRows();if(draft[id].kind==='alternate')$('alternate-'+id).focus();}
+function updateSaveState(){
+const count=ORDER.filter(id=>valid(id,draft[id])).length,changed=dirty();
+$('save').disabled=!ready||saveBusy||count!==5||conflictSubjects.size>0;
+$('save-state').className='state '+(changed?'save-pending':count===5?'save-success':'');
+$('save-state').textContent=saveBusy?'保存中…':batchMessage||(changed?'未保存の変更があります（'+count+'／５教科 入力済み）':count===5?'✓ 保存済み':count+'／５教科 入力済み。教科ごとに保存できます。');
+for(const id of ORDER){
+ const b=$('save-'+id),status=$('subject-state-'+id);if(!b||!status)continue;
+ b.disabled=!ready||saveBusy||!valid(id,draft[id])||conflictSubjects.has(id);
+ const pending=subjectDirty(id),message=subjectMessages[id];
+ status.className='subject-state '+(conflictSubjects.has(id)||message?.error?'save-error':pending?'save-pending':record(id)?'save-success':'');
+ status.textContent=message?.text||(pending?'未保存':record(id)?'✓ 保存済み':'未決定');
+}
+}
+function clearSubjectMessage(id){delete subjectMessages[id];batchMessage='';}
+function resolveConflict(id){
+ if(saveBusy||!confirm(SUBJECTS[id].name+'の入力を取り消し、最新の保存内容を読み込みますか？'))return;
+ draft[id]=savedDraft(id);conflictSubjects.delete(id);delete subjectMessages[id];batchMessage='';renderTeacherRows();
+}
+function toggleCode(id,code){if(saveBusy)return;clearSubjectMessage(id);const d=draft[id];if(d.codes.includes(code))d.codes=d.codes.filter(c=>c!==code);else if(d.codes.length<(d.kind==='alternate'?selectionCount(id)-1:selectionCount(id)))d.codes.push(code);$('message').textContent='';renderTeacherRows();}
+function toggleAlternate(id){if(saveBusy)return;clearSubjectMessage(id);draft[id].kind=draft[id].kind==='alternate'?'units':'alternate';$('message').textContent='';renderTeacherRows();if(draft[id].kind==='alternate')$('alternate-'+id).focus();}
 function renderTeacherRows(){const rows=$('teacher-rows');rows.replaceChildren();
 ORDER.forEach(id=>{const info=SUBJECTS[id],d=draft[id],row=node('div','teacher-row'),label=node('h3','subject-name',info.name),choices=node('div','symbol-options');
 commonUnits(id).forEach(u=>choices.append(node('span','tag','共通：'+u[1])));
 choices.setAttribute('role','group');choices.setAttribute('aria-label',info.name+'の範囲');
 info.units[grade].forEach(u=>{const selected=d.codes.includes(u[0]),b=node('button','symbol-button',u[0]);b.type='button';b.setAttribute('aria-pressed',String(selected));b.setAttribute('aria-label',info.name+' '+u[0]+' '+u[1]);b.title=u[1]+(pageLabel(u)?'　'+pageLabel(u):'');b.disabled=!selected&&d.codes.length>=(d.kind==='alternate'?selectionCount(id)-1:selectionCount(id));b.onclick=()=>toggleCode(id,u[0]);choices.append(b);});
 const alternate=node('button','symbol-button alternate-button','別版');alternate.type='button';alternate.setAttribute('aria-pressed',String(d.kind==='alternate'));alternate.setAttribute('aria-label',info.name+' 別版');alternate.onclick=()=>toggleAlternate(id);choices.append(alternate);row.append(label,choices);
-if(d.kind==='alternate'){const field=node('div','alternate-field'),caption=node('label','label',info.name+'・別版の内容'),input=node('textarea');input.id='alternate-'+id;caption.htmlFor=input.id;input.rows=2;input.maxLength=500;input.placeholder='別版の範囲を入力（２単元とも別版の場合は、この枠に両方入力）';input.value=d.text;input.oninput=()=>{draft[id].text=input.value;$('message').textContent='';updateSaveState();};field.append(caption,input);if(d.codes.length>=selectionCount(id))field.append(node('p','state','別版を使う場合は、選択中の記号を解除して合計の題数を合わせてください。'));row.append(field);}
-rows.append(row);});updateSaveState();}
+if(d.kind==='alternate'){const field=node('div','alternate-field'),caption=node('label','label',info.name+'・別版の内容'),input=node('textarea');input.id='alternate-'+id;caption.htmlFor=input.id;input.rows=2;input.maxLength=500;input.placeholder='別版の範囲を入力（２単元とも別版の場合は、この枠に両方入力）';input.value=d.text;input.oninput=()=>{clearSubjectMessage(id);draft[id].text=input.value;$('message').textContent='';updateSaveState();};field.append(caption,input);if(d.codes.length>=selectionCount(id))field.append(node('p','state','別版を使う場合は、選択中の記号を解除して合計の題数を合わせてください。'));row.append(field);}
+const actions=node('div','subject-save'),save=node('button','','保存'),status=node('p','subject-state');
+save.type='button';save.id='save-'+id;save.setAttribute('aria-label',info.name+'を保存');save.onclick=()=>saveSubjects([id]);status.id='subject-state-'+id;status.setAttribute('role','status');status.setAttribute('aria-live','polite');actions.append(save,status);
+if(conflictSubjects.has(id)){const resolve=node('button','resolve-conflict','最新内容を読み込む');resolve.type='button';resolve.setAttribute('aria-label',info.name+'の最新内容を読み込む');resolve.onclick=()=>resolveConflict(id);actions.append(resolve);}
+row.append(actions);rows.append(row);});updateSaveState();}
 function render(){$('execution-list').href='execution.html?'+new URLSearchParams(campusId?{campus:campusId}:{});document.getElementById('all-ranges').href='ranges.html?'+new URLSearchParams({grade:String(grade),...(campusId?{campus:campusId}:{})});const teacher=mode==='teacher',admin=mode==='admin';document.body.classList.toggle('student-mode',mode==='student');document.body.classList.toggle('admin-mode',admin);['teacher','student','admin'].forEach(m=>$(m).setAttribute('aria-pressed',String(mode===m)));document.querySelectorAll('[data-grade]').forEach(b=>b.setAttribute('aria-pressed',String(Number(b.dataset.grade)===grade)));$('range-filters').hidden=admin;$('admin-panel').hidden=!admin;$('teacher-layout').hidden=!teacher||!school;$('student-summary').hidden=mode!=='student'||!school;$('no-schools').hidden=admin||Boolean(school);
 if(admin){renderAdmin();return;}if(!school)return;if(!teacher){renderStudentOverview();return;}
 $('teacher-heading').textContent=db.schools.find(s=>s.id===school).name+'　'+grade+'年生';renderTeacherRows();}
-async function saveAll(){if(!ready||!canEdit||mode!=='teacher'||!school||!ORDER.every(id=>valid(id,draft[id])))return;const records={...db.records},updated=new Date().toISOString();ORDER.forEach(id=>{records[key(id)]={...normalized(draft[id]),updated};});if(await persist({...db,records})){loadDraft();updateSaveState();$('save-state').textContent='✓ 保存完了（'+new Date(updated).toLocaleTimeString('ja-JP')+'）';$('message').textContent='';}else{$('save-state').className='state save-error';$('save-state').textContent='保存できませんでした。もう一度お試しください。';}}
+async function saveSubjects(ids,all=false){
+if(!ready||!canEdit||saveBusy||mode!=='teacher'||!school||ids.some(id=>!valid(id,draft[id])||conflictSubjects.has(id)))return;
+const submitted=Object.fromEntries(ids.map(id=>[id,normalized(draft[id])])),changes=ids.filter(id=>!all||subjectDirty(id)).map(id=>({subject:id,expected:rawRecord(id),record:submitted[id]}));
+const pending=new Set(ORDER.filter(subjectDirty));saveBusy=true;batchMessage='';$('message').textContent='';
+for(const id of ids)subjectMessages[id]={text:'保存中…'};updateSaveState();
+$('range-filters').inert=true;document.querySelector('.mode').inert=true;
+document.querySelectorAll('.symbol-button,.alternate-field textarea,.resolve-conflict').forEach(b=>b.disabled=true);
+try{
+ const response=await fetch('/api/save-ranges',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({campus:campusId,exam:EXAM.id,school,grade,changes})});
+ const result=await response.json();
+ if(!response.ok){
+  if(response.status===403)canEdit=false;
+  if(result.code==='RANGE_CONFLICT'&&result.data){
+   db=result.data;revision=result.revision;
+   for(const id of ORDER)if(!pending.has(id)&&!ids.includes(id))draft[id]=savedDraft(id);
+   for(const id of result.subjects||[])conflictSubjects.add(id);
+  }
+  throw Error(result.error||'保存できませんでした。');
+ }
+ if(!ready)return;
+ if(!result.data)throw Error('保存結果を確認できませんでした。再読み込みして確認してください。');
+ db=result.data;revision=result.revision;
+ for(const id of ORDER)if(ids.includes(id)||!pending.has(id))draft[id]=savedDraft(id);
+ const time=new Date().toLocaleTimeString('ja-JP');for(const id of ids)subjectMessages[id]={text:'✓ 保存完了（'+time+'）'};
+ if(all)batchMessage='✓ ５教科の保存完了（'+time+'）';
+}catch(error){
+ for(const id of ids)subjectMessages[id]={text:conflictSubjects.has(id)?'他の先生が更新しました。最新内容を確認してください。':'保存できませんでした。',error:true};
+ $('message').textContent=error.message;
+ if(all)batchMessage='保存できませんでした。入力内容と画面の案内を確認してください。';
+}finally{
+ saveBusy=false;$('range-filters').inert=false;document.querySelector('.mode').inert=false;
+ if(ready){schoolOptions();renderTeacherRows();}
+}
+}
+function saveAll(){if(ORDER.every(id=>valid(id,draft[id])))return saveSubjects(ORDER,true);}
 $('save').onclick=saveAll;
 document.querySelectorAll('[data-grade]').forEach(b=>b.onclick=()=>{if(Number(b.dataset.grade)===grade||!leave())return;grade=Number(b.dataset.grade);schoolOptions();loadDraft();$('message').textContent='';render();});
 ['teacher','student','admin'].forEach(m=>$(m).onclick=async()=>{if(!ready||mode===m||!leave())return;if(m!=='student'&&!canEdit&&!(await requestPin()))return;mode=m;if(m==='admin'){adminSchools=cloneSchools();$('school-paste').value='';$('admin-status').textContent='';}schoolOptions();loadDraft();$('message').textContent='';render();});

@@ -23,22 +23,24 @@ main{max-width:1420px;display:grid;grid-template-columns:210px minmax(0,1fr);ali
 <style>@media(max-width:1200px){header .top{flex-wrap:wrap}.header-actions{margin-left:auto;max-width:100%}.mode{flex-wrap:wrap;justify-content:flex-end}}</style>
 <style>
 .teacher-row{grid-template-columns:68px minmax(0,1fr) 104px;gap:12px}.subject-save{grid-column:3;grid-row:1;display:grid;gap:5px;align-self:center}.subject-save button{background:var(--blue);color:white;padding:8px 10px;min-width:92px}.subject-state{font-size:.8rem;line-height:1.4;margin:0;padding:4px 6px;border-radius:6px;overflow-wrap:anywhere}.subject-save .resolve-conflict{font-size:.8rem;background:white;color:var(--blue);padding:6px;min-width:0}.alternate-field{grid-column:2/4}.teacher-row{padding:14px 0}@media(max-width:680px){.teacher-row{grid-template-columns:48px minmax(0,1fr);gap:8px}.subject-save{grid-column:2;grid-row:auto;display:flex;align-items:center;flex-wrap:wrap}.subject-save button{min-width:84px}.alternate-field{grid-column:1/-1}}
+</style><style>
+.input-layout-switch{display:flex;gap:8px;margin-bottom:12px}.input-layout-switch button[aria-pressed=true]{background:var(--blue);color:white;border-color:var(--blue)}.teacher-input-top{position:sticky;top:0;z-index:2;background:white;padding:8px 0 10px;border-bottom:1px solid var(--line)}.teacher-input-top .hint{margin:6px 0 0}.pending-inputs{margin:8px 0 0;font-size:.85rem;color:#80510a}.school-input-row{grid-template-columns:140px minmax(0,1fr) 104px}.school-input-row .subject-name{overflow-wrap:anywhere}.school-input-row:nth-child(even){background:#f7f9fd}.school-input-row{padding-left:10px;padding-right:10px}.teacher-subject-mode main{grid-template-columns:210px minmax(0,1fr)}#teacher-subjects .school-button[aria-pressed=true]{background:var(--blue);color:white}.subject-input-layout .teacher-input-top h2{font-size:1.3rem;color:var(--blue)}@media(max-width:950px){.teacher-subject-mode main{grid-template-columns:170px minmax(0,1fr)}.school-input-row{grid-template-columns:105px minmax(0,1fr) 96px}}@media(max-width:680px){.school-input-row{grid-template-columns:1fr}.school-input-row .subject-name{grid-column:1;font-size:1.1rem}.school-input-row .symbol-options,.school-input-row .subject-save,.school-input-row .alternate-field{grid-column:1;grid-row:auto}.subject-input-layout .teacher-input-top h2{font-size:1.1rem}}@media(max-width:600px){.teacher-subject-mode main{grid-template-columns:105px minmax(0,1fr)}.input-layout-switch button{padding:8px 10px;min-width:0;flex:1}.teacher-input-top{top:0}}
 </style></head>
 <body>
 <header><div class="top"><div><h1 id="exam-heading">定期テスト模擬</h1></div><div class="header-actions"><div class="brand-label">実力判定テスト範囲確定APP</div><nav class="mode" aria-label="画面の切り替え"><a href="campuses.html">校舎一覧</a><button id="admin" aria-pressed="false">校舎管理</button><button id="teacher" aria-pressed="true">教師入力</button><button id="student" aria-pressed="false">中学校別</button><a id="execution-list" href="execution.html" target="_blank" rel="noopener">実施用一覧</a><a id="all-ranges" href="ranges.html" target="_blank" rel="noopener">範囲表</a></nav></div></div></header>
 
 <div id="pin-panel" class="pin-overlay" hidden><form id="pin-form" class="pin-box" role="dialog" aria-modal="true" aria-labelledby="pin-heading"><h2 id="pin-heading">編集パスワード</h2><p id="pin-campus"></p><label for="pin-input">４桁の数字</label><input id="pin-input" type="password" inputmode="numeric" pattern="[0-9]{4}" maxlength="4" required autocomplete="off"><p id="pin-error" role="alert"></p><button id="pin-submit" type="submit">編集する</button><button id="pin-cancel" type="button">キャンセル</button></form></div><main>
-<aside class="filters" id="range-filters" aria-label="学年と中学校の選択"><div class="field"><span class="label">学年</span><div class="grades" role="group" aria-label="学年"><button data-grade="1" aria-pressed="true">１年生</button><button data-grade="2" aria-pressed="false">２年生</button><button data-grade="3" aria-pressed="false">３年生</button></div></div><div class="field"><span class="label" id="school-label">中学校</span><div id="school" class="school-buttons" role="group" aria-labelledby="school-label"></div></div></aside>
+<aside class="filters" id="range-filters" aria-label="学年と中学校の選択"><div class="field"><span class="label">学年</span><div class="grades" role="group" aria-label="学年"><button data-grade="1" aria-pressed="true">１年生</button><button data-grade="2" aria-pressed="false">２年生</button><button data-grade="3" aria-pressed="false">３年生</button></div></div><div class="field" id="teacher-subject-field" hidden><span class="label" id="teacher-subject-label">教科</span><div id="teacher-subjects" class="school-buttons" role="group" aria-labelledby="teacher-subject-label"></div></div><div class="field" id="school-field"><span class="label" id="school-label">中学校</span><div id="school" class="school-buttons" role="group" aria-labelledby="school-label"></div></div></aside>
 <div class="range-content">
 <section id="admin-panel" class="teacher-panel" hidden><div id="exam-registration" hidden style="margin-bottom:24px;padding-bottom:20px;border-bottom:1px solid #d9e1ed"><h2>全校舎共通の範囲表</h2><a href="exam-admin.html">次の回の範囲を登録する</a></div><form id="password-settings" style="border-bottom:1px solid #d9e1ed;padding-bottom:20px;margin-bottom:24px"><h2>この校舎のパスワード設定</h2><p class="hint">変更すると、次回からこの校舎の編集に新しいパスワードを使用します。</p><div style="display:flex;gap:12px;align-items:end;flex-wrap:wrap"><label class="field">新しいパスワード<input id="new-password" type="password" inputmode="numeric" pattern="[0-9]{4}" minlength="4" maxlength="4" required autocomplete="new-password" placeholder="数字４桁"></label><label class="field">確認のため再入力<input id="confirm-password" type="password" inputmode="numeric" pattern="[0-9]{4}" minlength="4" maxlength="4" required autocomplete="new-password" placeholder="数字４桁"></label><button id="save-password" type="submit">パスワードを保存</button></div><p id="password-status" role="status" aria-live="polite"></p></form><h2>中学校の設定</h2><p class="hint">この校舎に在籍している中学校を登録し、生徒がいる学年にチェックを入れてください。</p><div class="school-import"><label for="school-paste">中学校名をまとめて貼り付け</label><p class="hint">Excelなどの「中学校名」の１列をコピーできます。同じ学校が複数行あっても１校にまとめます。</p><textarea id="school-paste" rows="4" placeholder="Ｓ中学校&#10;Ｔ中学校&#10;Ｔ中学校"></textarea><button id="import-schools">一覧に追加</button></div><p class="hint">Ｓ中が３年生だけなら「３年生」のみ、Ｔ中が１・３年生ならその２つにチェック。未チェックの学校も登録したままにできます。</p><p id="school-count" class="label"></p><div class="school-table-wrap"><table id="school-settings"></table></div><div class="batch-save"><p id="admin-status" class="state" role="status" aria-live="polite"></p><button id="save-schools" class="primary">保存</button></div></section>
 <p id="no-schools" class="notice" hidden>この学年の中学校は未設定です。校舎管理で在籍する学年を設定してください。</p>
 <p id="message" class="status-line" role="status" aria-live="polite"></p>
 <div id="student-summary" class="student-summary" hidden></div>
-<section id="teacher-layout" class="teacher-panel"><h2 id="teacher-heading"></h2><p class="hint">各教科の指定数を選び、教科ごとに保存できます。５教科まとめて保存もできます。</p><div id="teacher-rows"></div><div class="batch-save"><p id="save-state" class="state" role="status" aria-live="polite"></p><button id="save" class="primary">５教科まとめて保存</button></div></section>
+<section id="teacher-layout" class="teacher-panel"><div id="teacher-input-root"></div></section>
 
 </div>
 </main>
-<script src="config.js"></script><script src="cloud-api.js?v=20260924-rounds"></script><script src="current-exam.js"></script><script>
+<script src="config.js"></script><script src="cloud-api.js?v=20260924-rounds"></script><script src="current-exam.js"></script><script src="teacher-input.js?v=20261022-layout"></script><script>
 'use strict';
 (async()=>{
 const EXAM=await CurrentExam.load();
@@ -55,7 +57,7 @@ let db={schools:[],records:{}};
 let loadProblem='';
 
 const ORDER=['english','math','science','social','japanese'];
-let school=db.schools[0]?.id||'',grade=1,mode='student',draft={};
+let school=db.schools[0]?.id||'',grade=1,mode='student';
 function key(id){return school+':'+grade+(id==='social'?'':':'+id);}
 function selectionCount(id){return EXAM.selectionCounts[grade]?.[id]||2;}
 function commonUnits(id){return EXAM.common[grade]?.[id]||[];}
@@ -63,27 +65,30 @@ function pageLabel(u){if(u[4])return u[4];return (u[2]?u[2]+'　':'')+(u[3]?'P'+
 function valid(id,r){if(!r)return false;const codes=r.codes||[];return Array.isArray(codes)&&new Set(codes).size===codes.length&&codes.every(c=>SUBJECTS[id].units[grade].some(u=>u[0]===c))&&(r.kind==='alternate'?codes.length<selectionCount(id)&&typeof r.text==='string'&&r.text.trim().length>0&&r.text.length<=500:codes.length===selectionCount(id));}
 function rawRecord(id){return db.records[key(id)]||(id==='social'?db.records[school+':'+grade+':social']:null)||null;}
 function record(id){const r=rawRecord(id);return valid(id,r)?r:null;}
-function savedDraft(id){const r=record(id);return {kind:r?.kind==='alternate'?'alternate':'units',codes:r?.codes?.slice()||[],text:r?.kind==='alternate'?r.text:''};}
-function loadDraft(){draft=Object.fromEntries(ORDER.map(id=>[id,savedDraft(id)]));subjectMessages={};conflictSubjects=new Set();batchMessage='';}
-function normalized(r){return r.kind==='alternate'?{kind:'alternate',codes:[...r.codes].sort(),text:r.text.trim()}:{kind:'units',codes:[...r.codes].sort()};}
-function subjectDirty(id){return JSON.stringify(normalized(draft[id]))!==JSON.stringify(normalized(savedDraft(id)));}
-function dirty(){return ORDER.some(subjectDirty);}
-function hasUnsaved(){if(!ready)return false;return mode==='admin'?adminDirty():mode==='teacher'&&dirty();}
-function leave(){if(saveBusy)return false;return !hasUnsaved()||confirm('まだ保存していない変更があります。変更を取り消して画面を切り替えますか？');}
-let revision=0,canEdit=false,ready=false,saveBusy=false,subjectMessages={},conflictSubjects=new Set(),batchMessage='';
+function hasUnsaved(){return ready&&((mode==='admin'&&adminDirty())||editor.isDirty());}
+function leave(){if(editor.isBusy())return false;return mode!=='admin'||!adminDirty()||confirm('まだ保存していない中学校設定があります。変更を取り消して画面を切り替えますか？');}
+let revision=0,canEdit=false,ready=false;
 window.addEventListener('exam-changed',()=>{ready=false;canEdit=false;});
 async function persist(next){
 try{if(!campusId)throw Error('校舎一覧から校舎を選んでください。');
 const response=await fetch('/api/save',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({campus:campusId,exam:EXAM.id,revision,data:next})});const result=await response.json();if(!response.ok){if(response.status===403)canEdit=false;throw Error(result.error);}revision=result.revision;db=next;return true;
 }catch(e){$('message').textContent=e.message||'保存できませんでした。';return false;}}
-async function loadRemote(){const response=await fetch('/api/state?campus='+encodeURIComponent(campusId)+'&exam='+EXAM.id);if(!response.ok)throw Error('保存先に接続できませんでした。');const result=await response.json();revision=result.revision;canEdit=result.canEdit;if(result.data)db=result.data;schoolOptions();loadDraft();}
+async function loadRemote(){const response=await fetch('/api/state?campus='+encodeURIComponent(campusId)+'&exam='+EXAM.id);if(!response.ok)throw Error('保存先に接続できませんでした。');const result=await response.json();revision=result.revision;canEdit=result.canEdit;if(result.data)db=result.data;schoolOptions();editor.syncData();}
 function requestPin(){return new Promise(resolve=>{const panel=$('pin-panel');panel.hidden=false;$('pin-campus').textContent=CAMPUS_NAMES[campusId];$('pin-input').value='';$('pin-error').textContent='';$('pin-input').focus();
 const close=ok=>{panel.hidden=true;$('pin-input').value='';$('pin-submit').disabled=false;resolve(ok);};
 $('pin-cancel').onclick=()=>close(false);
 $('pin-form').onsubmit=async e=>{e.preventDefault();$('pin-submit').disabled=true;try{const response=await fetch('/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({campus:campusId,pin:$('pin-input').value})});const result=await response.json();if(!response.ok)throw Error(result.error);await loadRemote();close(true);}catch(error){$('pin-error').textContent=error.message;$('pin-submit').disabled=false;}};});}
 
+const editor=TeacherInput.create({
+ root:$('teacher-input-root'),selector:$('teacher-subjects'),exam:EXAM,campus:campusId,
+ getData:()=>db,isReady:()=>ready,isEditing:()=>mode==='teacher',
+ ensureEdit:async()=>canEdit||await requestPin(),onAuthError:()=>{canEdit=false;},
+ onData:(data,nextRevision)=>{db=data;revision=nextRevision;schoolOptions();},
+ onBusy:value=>{$('range-filters').inert=value;document.querySelector('.mode').inert=value;},
+ onMessage:text=>{$('message').textContent=text;},onLayoutChange:()=>render()
+});
 function node(tag,cls,text){const n=document.createElement(tag);if(cls)n.className=cls;if(text!==undefined)n.textContent=text;return n;}
-function schoolOptions(){const group=$('school'),available=db.schools.filter(s=>schoolGrades(s).includes(grade));document.body.classList.toggle('many-schools',available.length>8);if(!available.some(s=>s.id===school))school=available[0]?.id||'';group.replaceChildren();available.forEach(s=>{const b=node('button','school-button',s.name);b.type='button';b.setAttribute('aria-pressed',String(s.id===school));b.onclick=()=>{if(s.id===school||!leave())return;school=s.id;loadDraft();schoolOptions();$('message').textContent='';render();};group.append(b);});}
+function schoolOptions(){const group=$('school'),available=db.schools.filter(s=>schoolGrades(s).includes(grade));document.body.classList.toggle('many-schools',!(mode==='teacher'&&editor.getLayout()==='subject')&&available.length>8);if(!available.some(s=>s.id===school))school=available[0]?.id||'';group.replaceChildren();available.forEach(s=>{const b=node('button','school-button',s.name);b.type='button';b.setAttribute('aria-pressed',String(s.id===school));b.onclick=()=>{if(s.id===school||!leave())return;school=s.id;schoolOptions();$('message').textContent='';render();};group.append(b);});}
 function selectionNode(u){const n=node('div','selection');n.append(node('strong','',u[0]+'　'+u[1]));if(pageLabel(u))n.append(node('span','pages',pageLabel(u)));return n;}
 function renderStudentOverview(){
 const overview=$('student-summary');overview.className='student-overview';overview.replaceChildren();
@@ -94,78 +99,21 @@ section.append(node('h3','',info.name+(info.provisional&&(saved?.codes?.length||
 if(saved){commonUnits(id).forEach(u=>section.append(selectionNode(u)));info.units[grade].filter(u=>(saved.codes||[]).includes(u[0])).forEach(u=>section.append(selectionNode(u)));if(saved.kind==='alternate')section.append(node('strong','alternate-label','別版'),node('p','alternate-text',saved.text));}
 else section.append(node('p','state','未決定'));(index<3?left:right).append(section);});
 }
-function updateSaveState(){
-const count=ORDER.filter(id=>valid(id,draft[id])).length,changed=dirty();
-$('save').disabled=!ready||saveBusy||count!==5||conflictSubjects.size>0;
-$('save-state').className='state '+(changed?'save-pending':count===5?'save-success':'');
-$('save-state').textContent=saveBusy?'保存中…':batchMessage||(changed?'未保存の変更があります（'+count+'／５教科 入力済み）':count===5?'✓ 保存済み':count+'／５教科 入力済み。教科ごとに保存できます。');
-for(const id of ORDER){
- const b=$('save-'+id),status=$('subject-state-'+id);if(!b||!status)continue;
- b.disabled=!ready||saveBusy||!valid(id,draft[id])||conflictSubjects.has(id);
- const pending=subjectDirty(id),message=subjectMessages[id];
- status.className='subject-state '+(conflictSubjects.has(id)||message?.error?'save-error':pending?'save-pending':record(id)?'save-success':'');
- status.textContent=message?.text||(pending?'未保存':record(id)?'✓ 保存済み':'未決定');
+function render(){
+$('execution-list').href='execution.html?'+new URLSearchParams(campusId?{campus:campusId}:{});
+$('all-ranges').href='ranges.html?'+new URLSearchParams({grade:String(grade),...(campusId?{campus:campusId}:{})});
+const teacher=mode==='teacher',admin=mode==='admin',bySubject=teacher&&editor.getLayout()==='subject';
+document.body.classList.toggle('student-mode',mode==='student');document.body.classList.toggle('admin-mode',admin);document.body.classList.toggle('teacher-subject-mode',bySubject);
+document.body.classList.toggle('many-schools',!bySubject&&db.schools.filter(s=>schoolGrades(s).includes(grade)).length>8);
+['teacher','student','admin'].forEach(m=>$(m).setAttribute('aria-pressed',String(mode===m)));
+document.querySelectorAll('[data-grade]').forEach(b=>b.setAttribute('aria-pressed',String(Number(b.dataset.grade)===grade)));
+$('range-filters').hidden=admin;$('teacher-subject-field').hidden=!bySubject;$('school-field').hidden=bySubject;
+$('range-filters').setAttribute('aria-label',bySubject?'学年と教科の選択':'学年と中学校の選択');
+$('admin-panel').hidden=!admin;$('teacher-layout').hidden=!teacher;$('student-summary').hidden=mode!=='student'||!school;$('no-schools').hidden=admin||teacher||Boolean(school);
+if(admin){renderAdmin();return;}if(teacher){editor.setContext({school,grade});return;}if(school)renderStudentOverview();
 }
-}
-function clearSubjectMessage(id){delete subjectMessages[id];batchMessage='';}
-function resolveConflict(id){
- if(saveBusy||!confirm(SUBJECTS[id].name+'の入力を取り消し、最新の保存内容を読み込みますか？'))return;
- draft[id]=savedDraft(id);conflictSubjects.delete(id);delete subjectMessages[id];batchMessage='';renderTeacherRows();
-}
-function toggleCode(id,code){if(saveBusy)return;clearSubjectMessage(id);const d=draft[id];if(d.codes.includes(code))d.codes=d.codes.filter(c=>c!==code);else if(d.codes.length<(d.kind==='alternate'?selectionCount(id)-1:selectionCount(id)))d.codes.push(code);$('message').textContent='';renderTeacherRows();}
-function toggleAlternate(id){if(saveBusy)return;clearSubjectMessage(id);draft[id].kind=draft[id].kind==='alternate'?'units':'alternate';$('message').textContent='';renderTeacherRows();if(draft[id].kind==='alternate')$('alternate-'+id).focus();}
-function renderTeacherRows(){const rows=$('teacher-rows');rows.replaceChildren();
-ORDER.forEach(id=>{const info=SUBJECTS[id],d=draft[id],row=node('div','teacher-row'),label=node('h3','subject-name',info.name),choices=node('div','symbol-options');
-commonUnits(id).forEach(u=>choices.append(node('span','tag','共通：'+u[1])));
-choices.setAttribute('role','group');choices.setAttribute('aria-label',info.name+'の範囲');
-info.units[grade].forEach(u=>{const selected=d.codes.includes(u[0]),b=node('button','symbol-button',u[0]);b.type='button';b.setAttribute('aria-pressed',String(selected));b.setAttribute('aria-label',info.name+' '+u[0]+' '+u[1]);b.title=u[1]+(pageLabel(u)?'　'+pageLabel(u):'');b.disabled=!selected&&d.codes.length>=(d.kind==='alternate'?selectionCount(id)-1:selectionCount(id));b.onclick=()=>toggleCode(id,u[0]);choices.append(b);});
-const alternate=node('button','symbol-button alternate-button','別版');alternate.type='button';alternate.setAttribute('aria-pressed',String(d.kind==='alternate'));alternate.setAttribute('aria-label',info.name+' 別版');alternate.onclick=()=>toggleAlternate(id);choices.append(alternate);row.append(label,choices);
-if(d.kind==='alternate'){const field=node('div','alternate-field'),caption=node('label','label',info.name+'・別版の内容'),input=node('textarea');input.id='alternate-'+id;caption.htmlFor=input.id;input.rows=2;input.maxLength=500;input.placeholder='別版の範囲を入力（２単元とも別版の場合は、この枠に両方入力）';input.value=d.text;input.oninput=()=>{clearSubjectMessage(id);draft[id].text=input.value;$('message').textContent='';updateSaveState();};field.append(caption,input);if(d.codes.length>=selectionCount(id))field.append(node('p','state','別版を使う場合は、選択中の記号を解除して合計の題数を合わせてください。'));row.append(field);}
-const actions=node('div','subject-save'),save=node('button','','保存'),status=node('p','subject-state');
-save.type='button';save.id='save-'+id;save.setAttribute('aria-label',info.name+'を保存');save.onclick=()=>saveSubjects([id]);status.id='subject-state-'+id;status.setAttribute('role','status');status.setAttribute('aria-live','polite');actions.append(save,status);
-if(conflictSubjects.has(id)){const resolve=node('button','resolve-conflict','最新内容を読み込む');resolve.type='button';resolve.setAttribute('aria-label',info.name+'の最新内容を読み込む');resolve.onclick=()=>resolveConflict(id);actions.append(resolve);}
-row.append(actions);rows.append(row);});updateSaveState();}
-function render(){$('execution-list').href='execution.html?'+new URLSearchParams(campusId?{campus:campusId}:{});document.getElementById('all-ranges').href='ranges.html?'+new URLSearchParams({grade:String(grade),...(campusId?{campus:campusId}:{})});const teacher=mode==='teacher',admin=mode==='admin';document.body.classList.toggle('student-mode',mode==='student');document.body.classList.toggle('admin-mode',admin);['teacher','student','admin'].forEach(m=>$(m).setAttribute('aria-pressed',String(mode===m)));document.querySelectorAll('[data-grade]').forEach(b=>b.setAttribute('aria-pressed',String(Number(b.dataset.grade)===grade)));$('range-filters').hidden=admin;$('admin-panel').hidden=!admin;$('teacher-layout').hidden=!teacher||!school;$('student-summary').hidden=mode!=='student'||!school;$('no-schools').hidden=admin||Boolean(school);
-if(admin){renderAdmin();return;}if(!school)return;if(!teacher){renderStudentOverview();return;}
-$('teacher-heading').textContent=db.schools.find(s=>s.id===school).name+'　'+grade+'年生';renderTeacherRows();}
-async function saveSubjects(ids,all=false){
-if(!ready||!canEdit||saveBusy||mode!=='teacher'||!school||ids.some(id=>!valid(id,draft[id])||conflictSubjects.has(id)))return;
-const submitted=Object.fromEntries(ids.map(id=>[id,normalized(draft[id])])),changes=ids.filter(id=>!all||subjectDirty(id)).map(id=>({subject:id,expected:rawRecord(id),record:submitted[id]}));
-const pending=new Set(ORDER.filter(subjectDirty));saveBusy=true;batchMessage='';$('message').textContent='';
-for(const id of ids)subjectMessages[id]={text:'保存中…'};updateSaveState();
-$('range-filters').inert=true;document.querySelector('.mode').inert=true;
-document.querySelectorAll('.symbol-button,.alternate-field textarea,.resolve-conflict').forEach(b=>b.disabled=true);
-try{
- const response=await fetch('/api/save-ranges',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({campus:campusId,exam:EXAM.id,school,grade,changes})});
- const result=await response.json();
- if(!response.ok){
-  if(response.status===403)canEdit=false;
-  if(result.code==='RANGE_CONFLICT'&&result.data){
-   db=result.data;revision=result.revision;
-   for(const id of ORDER)if(!pending.has(id)&&!ids.includes(id))draft[id]=savedDraft(id);
-   for(const id of result.subjects||[])conflictSubjects.add(id);
-  }
-  throw Error(result.error||'保存できませんでした。');
- }
- if(!ready)return;
- if(!result.data)throw Error('保存結果を確認できませんでした。再読み込みして確認してください。');
- db=result.data;revision=result.revision;
- for(const id of ORDER)if(ids.includes(id)||!pending.has(id))draft[id]=savedDraft(id);
- const time=new Date().toLocaleTimeString('ja-JP');for(const id of ids)subjectMessages[id]={text:'✓ 保存完了（'+time+'）'};
- if(all)batchMessage='✓ ５教科の保存完了（'+time+'）';
-}catch(error){
- for(const id of ids)subjectMessages[id]={text:conflictSubjects.has(id)?'他の先生が更新しました。最新内容を確認してください。':'保存できませんでした。',error:true};
- $('message').textContent=error.message;
- if(all)batchMessage='保存できませんでした。入力内容と画面の案内を確認してください。';
-}finally{
- saveBusy=false;$('range-filters').inert=false;document.querySelector('.mode').inert=false;
- if(ready){schoolOptions();renderTeacherRows();}
-}
-}
-function saveAll(){if(ORDER.every(id=>valid(id,draft[id])))return saveSubjects(ORDER,true);}
-$('save').onclick=saveAll;
-document.querySelectorAll('[data-grade]').forEach(b=>b.onclick=()=>{if(Number(b.dataset.grade)===grade||!leave())return;grade=Number(b.dataset.grade);schoolOptions();loadDraft();$('message').textContent='';render();});
-['teacher','student','admin'].forEach(m=>$(m).onclick=async()=>{if(!ready||mode===m||!leave())return;if(m!=='student'&&!canEdit&&!(await requestPin()))return;mode=m;if(m==='admin'){adminSchools=cloneSchools();$('school-paste').value='';$('admin-status').textContent='';}schoolOptions();loadDraft();$('message').textContent='';render();});
+document.querySelectorAll('[data-grade]').forEach(b=>b.onclick=()=>{if(Number(b.dataset.grade)===grade||!leave())return;grade=Number(b.dataset.grade);schoolOptions();$('message').textContent='';render();});
+['teacher','student','admin'].forEach(m=>$(m).onclick=async()=>{if(!ready||mode===m||!leave())return;if(m!=='student'&&!canEdit&&!(await requestPin()))return;mode=m;if(m==='admin'){adminSchools=cloneSchools();$('school-paste').value='';$('admin-status').textContent='';}schoolOptions();$('message').textContent='';render();});
 let adminSchools=[];
 function schoolGrades(s){return Array.isArray(s.grades)?s.grades.filter(g=>[1,2,3].includes(g)):[1,2,3];}
 function cloneSchools(){return db.schools.map(s=>({...s,grades:[...schoolGrades(s)]}));}
@@ -181,7 +129,7 @@ const norm=v=>v.normalize('NFKC').replace(/\s+/g,' ').trim();const names=lines.f
 let added=0,duplicates=0;const known=new Set(adminSchools.map(s=>norm(s.name)));names.forEach(name=>{if(known.has(norm(name))){duplicates++;return;}known.add(norm(name));adminSchools.push({id:globalThis.crypto?.randomUUID?.()||'school-'+Date.now()+'-'+Math.random().toString(36).slice(2),name,grades:[]});added++;});
 $('school-paste').value='';renderAdmin();adminStatus(added+'校を一覧に追加しました。'+(duplicates?duplicates+'件の重複を除きました。':'')+'在籍する学年にチェックを入れ、保存してください。');}
 async function saveSchoolSettings(){if(!ready||!canEdit)return;if($('school-paste').value.trim()){adminStatus('貼り付けた学校名を「一覧に追加」してから保存してください。');return;}
-if(await persist({...db,schools:adminSchools.map(s=>({...s,grades:[...s.grades]}))})){adminSchools=cloneSchools();schoolOptions();loadDraft();adminStatus('✓ 保存完了（'+new Date().toLocaleTimeString('ja-JP')+'）',true);}else{adminStatus('保存できませんでした。もう一度お試しください。');}}
+if(await persist({...db,schools:adminSchools.map(s=>({...s,grades:[...s.grades]}))})){adminSchools=cloneSchools();schoolOptions();editor.syncData();adminStatus('✓ 保存完了（'+new Date().toLocaleTimeString('ja-JP')+'）',true);}else{adminStatus('保存できませんでした。もう一度お試しください。');}}
 $('password-settings').onsubmit=async e=>{
  e.preventDefault();const status=$('password-status'),pin=$('new-password').value;
  if(!/^[0-9]{4}$/.test(pin)){status.textContent='半角数字４桁で入力してください。';return;}
@@ -195,7 +143,7 @@ $('import-schools').onclick=importSchools;$('save-schools').onclick=saveSchoolSe
 $('school-paste').oninput=()=>adminStatus('貼り付けた学校名は、まだ一覧に追加されていません。');
 
 window.addEventListener('beforeunload',e=>{if(hasUnsaved()){e.preventDefault();e.returnValue='';}});
-schoolOptions();loadDraft();render();$('message').textContent='読み込み中…';
+schoolOptions();editor.syncData();render();$('message').textContent='読み込み中…';
 if(!campusId){location.replace('campuses.html');}else{loadRemote().then(async()=>{ready=true;render();$('message').textContent=revision===0?'この回の選択単元はまだ保存されていません。教師入力画面で登録してください。':'';if(new URLSearchParams(location.search).get('view')!=='student')await $(new URLSearchParams(location.search).get('view')==='admin'?'admin':'teacher').onclick();}).catch(e=>{$('message').textContent=e.message;});}
 if(document.modelContext?.registerTool){try{Promise.resolve(document.modelContext.registerTool({name:'read_test_range',description:'現在の中学校・学年の保存済み５教科の範囲を読み取ります。未保存の入力は含みません。',inputSchema:{type:'object',properties:{},additionalProperties:false},annotations:{readOnlyHint:true},execute:()=>({exam:EXAM.title,campus:campusId?CAMPUS_NAMES[campusId]:null,school:db.schools.find(s=>s.id===school)?.name||null,grade,subjects:ORDER.map(id=>({name:SUBJECTS[id].name,range:record(id)})),storage:'Googleドライブの共有保存データ'})})).catch(()=>{});}catch{}}
 

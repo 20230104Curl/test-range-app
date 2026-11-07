@@ -3,13 +3,14 @@
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex,nofollow">
-  <title>千種本部校｜学校別テスト範囲比較</title>
-  <link rel="stylesheet" href="styles.css?v=direct-20261107">
+  <title>学校別テスト範囲比較</title>
+  <link rel="stylesheet" href="styles.css?v=campus-20261107">
 </head>
 <body>
-  <header class="top"><a class="brand" href="./"><span class="mark">範</span><span>テスト範囲比較<small>千種本部校 · 教師用</small></span></a><button id="connectionButton" class="quiet">接続設定</button></header>
+  <header class="top"><a class="brand" href="./"><span class="mark">範</span><span>テスト範囲比較<small id="campusBrand">校舎を選択 · 教師用</small></span></a><button id="connectionButton" class="quiet">接続設定</button></header>
   <main>
-    <section class="intro"><div><p class="eyebrow">授業準備 / 学校別テスト範囲</p><h1>学校をこえて、<br class="mobile">範囲をひと目に。</h1><p class="lead">学年と教科を選んで、学校ごとの範囲を比較できます。</p></div><div class="today"><span id="today"></span><small id="year"></small></div></section>
+    <section class="intro"><div><p class="eyebrow">授業準備 / 学校別テスト範囲</p><h1>学校をこえて、<br class="mobile">範囲をひと目に。</h1><p class="lead">校舎・学年・教科を選んで、担当する中学校の範囲を比較できます。</p></div><div class="today"><span id="today"></span><small id="year"></small></div></section>
+    <section class="campus-picker" aria-label="表示する校舎"><div class="campus-controls"><label for="campus">校舎</label><select id="campus" aria-describedby="campusHelp"><option value="">校舎を選択してください</option></select><button id="campusReload" class="quiet" type="button">中学校情報を更新</button></div><p id="campusHelp">初回に自分の校舎を選ぶだけで、次回から自動で表示します。</p><p id="campusStatus" role="status" aria-live="polite"></p><p id="campusSchools" class="campus-schools"></p><a id="campusManage" target="_blank" rel="noopener" hidden>中学校の設定を開く</a></section>
     <div id="connectionStatus" class="notice" role="status"></div>
     <p class="source-note">読み取れなかった箇所は「不明」と表示します。不明な箇所や詳細は原本を確認してください。</p><section class="selectors" aria-label="表示する学年と教科"><div class="selector-row"><h2><span>01</span> 学年</h2><div id="grades" class="segments"></div></div><div class="selector-row"><h2><span>02</span> 教科</h2><div id="subjects" class="segments"></div></div></section>
     <div class="toolbar"><strong class="list-label">学校別の範囲一覧</strong><div class="actions"><label for="school">学校</label><select id="school"><option value="">すべての学校</option></select><button id="newButton" class="quiet">PDF・写真を登録</button><button id="refreshButton" class="quiet">更新</button></div></div>
@@ -17,11 +18,12 @@
     <section id="previousSection" class="previous"><button id="previousButton" class="quiet">前回のテスト範囲を見る</button><div id="previousContent" hidden><div class="section-head"><h2>前回のテスト範囲</h2><span>当年度・学校ごとの直近の登録分</span></div><div id="previousCards" class="cards"></div></div></section>
     <div class="import-tools"><label class="file-button">読み取り結果JSONを開く<input id="importFile" type="file" accept="application/json,.json" hidden></label><button id="exportButton" class="quiet" hidden>確認内容をJSONで保存</button><span>未接続でも内容を確認できます。共有保存は接続後に利用できます。</span></div>
   </main>
-  <footer><span>千種本部校 · 教師用</span><span>AI自動読み取り：未接続</span></footer>
+  <footer><span id="campusFooter">テスト範囲比較 · 教師用</span><span>校舎・中学校情報は模擬範囲決定アプリと共用</span></footer>
   <dialog id="connectionDialog"><form method="dialog" class="modal"><div class="modal-head"><h2>共有保存の接続設定</h2><button value="cancel" class="close" aria-label="閉じる">×</button></div><p>Google側の保存用アプリを初回だけ設定します。接続先のURLを入力してください。</p><label>Apps Scriptの公開URL<input id="apiUrl" type="url" placeholder="https://script.google.com/macros/s/…/exec"></label><p id="connectionError" class="error" role="alert"></p><div class="modal-actions"><a href="setup.html" target="_blank" rel="noopener">初回設定の手順を見る</a><button id="connectButton" type="button" class="primary">接続する</button></div></form></dialog>
   <dialog id="editorDialog"><form id="editorForm" class="modal wide"><div class="modal-head"><div><p class="eyebrow">不明な箇所は「不明」のまま保存できます</p><h2 id="editorTitle">範囲を修正</h2></div><button id="editorClose" type="button" class="close" aria-label="閉じる">×</button></div><div class="edit-layout"><section class="source-panel"><div class="source-tools"><strong id="sourceLabel"></strong><button id="loadOriginal" type="button" class="quiet">原本を表示</button><a id="driveOriginal" target="_blank" rel="noopener">Driveで開く</a></div><div id="sourcePreview" class="source-preview"><p>「原本を表示」で、登録元のPDF・写真を確認できます。</p></div></section><section class="fields"><div class="field-row"><label>学校名<input name="school" maxlength="80" required></label><label>学年<select name="grade"><option value="1">中学1年</option><option value="2">中学2年</option><option value="3">中学3年</option></select></label></div><div class="field-row"><label>年度<input name="year" type="number" min="2000" max="2100" required></label><label>テスト名<input name="testName" maxlength="100" required></label></div><div id="subjectFields"></div><p id="editorError" class="error" role="alert"></p></section></div><div class="modal-actions sticky"><span id="saveHint"></span><div><button id="publishButton" type="button" class="primary">保存する</button></div></div></form></dialog>
   <dialog id="uploadDialog"><form id="uploadForm" class="modal"><div class="modal-head"><h2>PDF・写真を登録</h2><button id="uploadClose" type="button" class="close" aria-label="閉じる">×</button></div><p>資料を保存した後、原本と照合しながら範囲を入力します。AI自動読み取りは未接続です。</p><label>資料（PDF・JPEG・PNG／10MBまで）<input id="uploadFile" type="file" accept="application/pdf,image/jpeg,image/png" required></label><p id="uploadError" class="error" role="alert"></p><div class="modal-actions"><span>1件につき1校・1学年・1回のテスト</span><button id="uploadButton" type="button" class="primary">資料を保存して入力</button></div></form></dialog>
   <div id="toast" class="toast" role="status" hidden></div>
-  <script src="config.js?v=direct-20261107"></script><script src="core.js?v=direct-20261107"></script><script src="app.js?v=direct-20261107"></script>
+  <script src="../config.js?v=campus-20261107"></script><script src="config.js?v=campus-20261107"></script><script src="campus.js?v=campus-20261107"></script><script src="core.js?v=campus-20261107"></script><script src="app.js?v=campus-20261107"></script>
 </body>
 </html>
+

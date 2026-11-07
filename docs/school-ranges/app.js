@@ -1,8 +1,8 @@
-/* global RangeCore, RANGE_SETTINGS, google */
+/* global RangeCore, CampusDirectory, RANGE_SETTINGS */
 (() => {
   'use strict';
-  const C=RangeCore,$=id=>document.getElementById(id);
-  const state={grade:3,subject:'social',school:'',mode:'upcoming',tests:[],today:C.todayJst(),connected:false,local:false,api:'',edit:null,dirty:false,previous:false,busy:false,originalUrl:''};
+  const C=RangeCore,D=CampusDirectory,$=id=>document.getElementById(id);
+  const state={grade:3,subject:'social',school:'',mode:'upcoming',tests:[],today:C.todayJst(),connected:false,local:false,api:'',edit:null,dirty:false,previous:false,busy:false,originalUrl:'',campus:'',campuses:{},campusSchools:[],campusReady:false,campusLoading:false,campusError:'',campusSequence:0,campusStorage:true};
   try { state.api=RANGE_SETTINGS.apiUrl||localStorage.getItem('school-ranges-api-v1')||''; } catch (_) {state.api=RANGE_SETTINGS.apiUrl||'';}
   const text=(tag,value,cls)=>{const e=document.createElement(tag);e.textContent=value;if(cls)e.className=cls;return e;};
   function toast(message){$('toast').textContent=message;$('toast').hidden=false;setTimeout(()=>$('toast').hidden=true,4500);}
@@ -17,6 +17,49 @@
     if(!result.ok){const error=Error(result.error||'保存処理に失敗しました。');error.code=result.code;error.current=result.current;throw error;}
     return result;
   }
+  function visibleTests(){return state.campusReady?D.scopedTests(state.tests,state.campusSchools,state.campus):[];}
+  function renderCampus(){
+    const name=state.campuses[state.campus]||'';
+    $('campus').value=state.campus;
+    $('campusBrand').textContent=(name||'校舎を選択')+' · 教師用';
+    $('campusFooter').textContent=(name||'テスト範囲比較')+' · 教師用';
+    document.title=(name?name+'｜':'')+'学校別テスト範囲比較';
+    $('campusReload').disabled=state.campusLoading;
+    $('campusManage').hidden=!state.campus;
+    if(state.campus)$('campusManage').href='../index.html?'+new URLSearchParams({campus:state.campus,view:'admin'});
+    const available=state.campusSchools.filter(s=>s.grades.includes(state.grade));
+    const count=new Set(visibleTests().filter(t=>t.grade===state.grade&&t.year===C.yearOf(state.today)).map(t=>D.matchingSchool(t,available,state.campus)?.id)).size;
+    $('campusStatus').className=state.campusError?'error':'';
+    $('campusStatus').textContent=state.campusError||(!state.campus?'表示する校舎を選択してください。':state.campusLoading?'中学校情報を読み込んでいます…':state.campusReady?'中学'+state.grade+'年：対象'+available.length+'校／範囲表の登録済み'+count+'校':'');
+    $('campusSchools').textContent=state.campusReady?(available.length?available.map(s=>s.name).join('・'):'この学年の対象中学校は登録されていません。'):'';
+    $('campusHelp').textContent=state.campusStorage?'初回に自分の校舎を選ぶだけで、次回から自動で表示します。':'この端末では校舎の選択を保存できません。次回も校舎を選択してください。';
+  }
+  async function loadCampuses(){
+    try{
+      const response=await fetch('../campuses.json',{cache:'no-store',signal:AbortSignal.timeout(20000)});
+      if(!response.ok)throw Error();
+      const names=await response.json();
+      if(!names||Array.isArray(names)||typeof names!=='object'||Object.values(names).some(n=>typeof n!=='string'||!n))throw Error();
+      state.campuses=names;
+      $('campus').replaceChildren(new Option('校舎を選択してください',''),...Object.entries(names).sort((a,b)=>a[1].localeCompare(b[1],'ja')).map(([id,name])=>new Option(name,id)));
+      let storage;try{storage=localStorage;}catch{state.campusStorage=false;}
+      const campus=D.initialCampus(location.search,storage,names);
+      if(campus)await setCampus(campus);else{state.campusError='';render();}
+    }catch{state.campusError='校舎一覧を読み込めませんでした。「中学校情報を更新」で再試行してください。';render();}
+  }
+  async function setCampus(campus){
+    const sequence=++state.campusSequence;
+    state.campus=Object.hasOwn(state.campuses,campus)?campus:'';
+    state.school='';state.campusSchools=[];state.campusReady=false;state.campusError='';state.campusLoading=!!state.campus;
+    try{localStorage.setItem(D.KEY,state.campus);state.campusStorage=true;}catch{state.campusStorage=false;}
+    const url=new URL(location.href);if(state.campus)url.searchParams.set('campus',state.campus);else url.searchParams.delete('campus');history.replaceState(null,'',url);
+    render();if(!state.campus)return;
+    try{const result=await D.loadSchools(window.RANGE_API_URL,state.campus);if(sequence!==state.campusSequence)return;state.campusSchools=result.schools;state.campusReady=true;}
+    catch{if(sequence!==state.campusSequence)return;state.campusError='中学校情報を読み込めませんでした。「中学校情報を更新」で再試行してください。';}
+    finally{if(sequence===state.campusSequence){state.campusLoading=false;render();}}
+  }
+  $('campus').onchange=e=>setCampus(e.target.value);
+  $('campusReload').onclick=()=>state.campus?setCampus(state.campus):loadCampuses();
   function choose(grade,subject){state.grade=grade;state.subject=subject;state.previous=false;$('previousContent').hidden=true;$('previousButton').textContent='前回のテスト範囲を見る';render();}
   function renderSelectors(){
     $('grades').replaceChildren(...[1,2,3].map(g=>{const b=text('button','中学'+g+'年',state.grade===g?'active':'');b.setAttribute('aria-pressed',state.grade===g);b.onclick=()=>choose(g,state.subject);return b;}));
@@ -26,11 +69,11 @@
     const status=$('connectionStatus');status.className='notice'+(state.connected?' connected':'');status.replaceChildren();
     if(state.connected)status.append(text('span','共有保存に接続済み。登録・修正はGoogle側に保存され、他の端末にも反映されます。'));
     else if(state.local)status.append(text('span','確認用データを表示中。変更はまだ共有されません。JSONに保存して残すか、共有保存に接続してください。'));
-    else {status.append(text('span','中３の試作を利用するには、初回の共有保存設定、または読み取り結果JSONの読み込みを行ってください。'));const b=text('button','初回設定の手順');b.onclick=()=>window.open('setup.html','_blank','noopener');status.append(b);}
-    $('exportButton').hidden=!state.tests.length;$('newButton').disabled=!state.connected;
+    else {status.append(text('span','共有データに接続していません。接続設定を確認してください。')); const b=text('button','初回設定の手順');b.onclick=()=>window.open('setup.html','_blank','noopener');status.append(b);}
+    $('exportButton').hidden=!visibleTests().length;$('newButton').disabled=!state.connected||!state.campusReady;
     $('today').textContent=state.today.replaceAll('-',' / ');$('year').textContent='日本時間 · '+C.yearOf(state.today)+'年度';
   }
-  function renderSchools(){const previous=state.school;const schools=[...new Set(state.tests.filter(t=>t.grade===state.grade&&t.year===C.yearOf(state.today)).map(t=>t.school))].sort((a,b)=>a.localeCompare(b,'ja'));$('school').replaceChildren(new Option('すべての学校',''),...schools.map(s=>new Option(s,s)));state.school=schools.includes(previous)?previous:'';$('school').value=state.school;}
+  function renderSchools(){const previous=state.school;const schools=[...new Set(visibleTests().filter(t=>t.grade===state.grade&&t.year===C.yearOf(state.today)).map(t=>t.school))].sort((a,b)=>a.localeCompare(b,'ja'));$('school').replaceChildren(new Option('すべての学校',''),...schools.map(s=>new Option(s,s)));state.school=schools.includes(previous)?previous:'';$('school').value=state.school;}
   function empty(container,title,message,button){const box=text('div','', 'empty');box.append(text('h3',title),text('p',message));if(button)box.append(button);container.append(box);}
   function dateLabel(date){if(!C.validDate(date))return '試験日：不明';const d=new Date(date+'T00:00:00+09:00');return (Number(date.slice(5,7))+'月'+Number(date.slice(8,10))+'日（'+new Intl.DateTimeFormat('ja-JP',{timeZone:'Asia/Tokyo',weekday:'short'}).format(d)+'）');}
   function card(row){const t=row.test,s=row.subject,el=text('article','','card');const head=text('div','','card-top');const date=text('p',dateLabel(s.date),'card-date');head.append(date,text('h3',t.school),text('div','中学'+t.grade+'年 · '+t.testName,'card-meta'));
@@ -39,14 +82,14 @@
     el.append(head,body);if(C.displayRange(s).includes('不明'))el.append(text('div','不明な箇所は原本を確認してください。','card-issues'));
     const foot=text('div','','card-bottom');const src=text('button','原本を見る'),edit=text('button','修正する');src.onclick=()=>{openEditor(t);loadOriginal();};edit.onclick=()=>openEditor(t);foot.append(src,edit);el.append(foot);return el;
   }
-  function renderList(container,mode){container.replaceChildren();if(!state.subject){empty(container,'教科を選択してください','選んだ教科の範囲を、学校ごとに試験日順で表示します。');return;}
-    const rows=C.select(state.tests,{grade:state.grade,subject:state.subject,school:state.school,mode,today:state.today});
+  function renderList(container,mode){container.replaceChildren();if(!state.campusReady){empty(container,state.campusLoading?'中学校情報を読み込んでいます':state.campusError?'校舎情報を確認できません':'校舎を選択してください',state.campusError||'校舎を選ぶと、担当する中学校の範囲をまとめて表示します。');return;}if(!state.subject){empty(container,'教科を選択してください','選んだ教科の範囲を、学校ごとに試験日順で表示します。');return;}
+    const rows=C.select(visibleTests(),{grade:state.grade,subject:state.subject,school:state.school,mode,today:state.today});
     if(rows.length){rows.forEach(row=>container.append(card(row)));return;}
     if(mode==='previous')empty(container,'当年度の前回のテスト範囲はありません','終了済みデータのうち、学校ごとの直近分を表示します。');
     else empty(container,'今後のテスト範囲はありません','選択した学年・教科・学校のデータを確認してください。');
   }
-  function render(){renderSelectors();renderStatus();renderSchools();$('listTitle').textContent='これからのテスト範囲';$('sortHint').textContent='教科ごとの試験日順';renderList($('cards'),'upcoming');$('previousSection').hidden=false;if(state.previous)renderList($('previousCards'),'previous');}
-  async function refresh(quiet=false){if(state.busy||!state.api)return;state.busy=true;$('refreshButton').disabled=true;try{const r=await api('list');state.tests=C.importData({schemaVersion:1,tests:r.tests});state.today=r.today;state.connected=true;state.local=false;render();if(!quiet)toast('共有データを更新しました。');}catch(e){state.connected=false;renderStatus();if(!quiet)toast(e.message);}finally{state.busy=false;$('refreshButton').disabled=false;}}
+  function render(){renderCampus();renderSelectors();renderStatus();renderSchools();$('listTitle').textContent='これからのテスト範囲';$('sortHint').textContent='教科ごとの試験日順';renderList($('cards'),'upcoming');$('previousSection').hidden=!state.campusReady;if(state.previous)renderList($('previousCards'),'previous');}
+  async function refresh(quiet=false){if(state.busy||!state.api)return;state.busy=true;$('refreshButton').disabled=true;try{const r=await api('list');state.tests=C.importData({schemaVersion:1,tests:r.tests});state.today=r.today;state.connected=true;state.local=false;render();if(!quiet){await (state.campus?setCampus(state.campus):loadCampuses());toast('共有データと中学校情報を更新しました。');}}catch(e){state.connected=false;renderStatus();if(!quiet)toast(e.message);}finally{state.busy=false;$('refreshButton').disabled=false;}}
   function labelInput(label,type,value,name){const l=text('label',label),input=document.createElement(type==='textarea'?'textarea':'input');if(type!=='textarea')input.type=type;input.name=name;input.value=value||'';l.append(input);return {label:l,input};}
   function openEditor(test){state.edit=JSON.parse(JSON.stringify(test));state.dirty=false;const form=$('editorForm');form.elements.school.value=test.school;form.elements.grade.value=test.grade;form.elements.year.value=test.year;form.elements.testName.value=test.testName;$('editorTitle').textContent=test.school?test.school+'の範囲修正':'範囲を入力';$('editorError').textContent='';$('publishButton').textContent=state.connected?'保存する':'JSONで保存';$('saveHint').textContent=state.connected?'共有データに保存します。':'未接続：編集後はJSONに保存して残してください。';
     const fields=$('subjectFields');fields.replaceChildren();for(const [code,name]of Object.entries(C.SUBJECTS)){const present=!!test.subjects[code],s=test.subjects[code]||{date:'',range:'',points:'',noRange:false};const group=text('section','','subject-field');group.dataset.subject=code;group.append(text('h3',name));const enabledLabel=text('label','','check'),enabled=document.createElement('input');enabled.type='checkbox';enabled.name=code+'Enabled';enabled.checked=present;enabledLabel.append(enabled,text('span','この資料にこの教科の記載がある'));group.append(enabledLabel);group.append(labelInput('試験日','date',s.date,code+'Date').label);const range=labelInput('テスト範囲（読み取れない箇所は「不明」）','textarea',C.displayRange(s),code+'Range');range.input.maxLength=12000;group.append(range.label);const noRange=text('label','','check'),cb=document.createElement('input');cb.type='checkbox';cb.name=code+'NoRange';cb.checked=!!s.noRange;noRange.append(cb,text('span','原本に範囲の記載なし'));group.append(noRange);const points=labelInput('学校が示した学習のポイント（記載がなければ空欄）','textarea',s.points,code+'Points');points.input.className='points-input';points.input.maxLength=6000;group.append(points.label);enabled.onchange=()=>{group.querySelectorAll('input:not([name="'+code+'Enabled"]),textarea').forEach(e=>e.disabled=!enabled.checked);};enabled.onchange();fields.append(group);}
@@ -58,7 +101,7 @@
     try{const r=await api('save',{test:t,expectedVersion:state.edit.version,requestId:state.edit.pendingRequestId});const i=state.tests.findIndex(x=>x.id===r.test.id);if(i<0)state.tests.push(r.test);else state.tests[i]=r.test;$('editorDialog').close();state.mode='upcoming';render();toast('範囲を保存しました。');}
     catch(e){$('editorError').textContent=e.message;if(e.code==='CONFLICT'){$('editorError').append(document.createTextNode('\n入力内容はこの画面に残っています。「JSONに退避」を押してから最新の共有データと照合してください。'));const backup=text('button','JSONに退避','quiet');backup.type='button';backup.onclick=()=>download(t);$('editorError').append(backup);}else if(e.code&&!['UNCERTAIN_WRITE','SERVER_ERROR','BUSY'].includes(e.code))delete state.edit.pendingRequestId;}
     finally{state.busy=false;$('publishButton').disabled=false;}}
-  function download(extra){const tests=state.tests.map(t=>extra&&t.id===extra.id?extra:t);if(extra&&!tests.some(t=>t.id===extra.id))tests.push(extra);const blob=new Blob([JSON.stringify({schemaVersion:1,campus:RANGE_SETTINGS.campus,preparedAt:state.today,tests},null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='中3_テスト範囲_確認用.json';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),10000);}
+  function download(extra){const tests=visibleTests().map(t=>extra&&t.id===extra.id?extra:t);if(extra&&!tests.some(t=>t.id===extra.id))tests.push(extra);const campus=state.campuses[state.campus]||'未選択';const blob=new Blob([JSON.stringify({schemaVersion:1,campusId:state.campus,campus,preparedAt:state.today,tests},null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=campus+'_テスト範囲_確認用.json';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),10000);}
   async function loadOriginal(){const src=state.edit?.source;if(!src?.fileId)return;if(!state.connected){$('sourcePreview').replaceChildren(text('p','未接続のため「Driveで開く」から原本をご確認ください。'));return;}$('loadOriginal').disabled=true;$('sourcePreview').replaceChildren(text('p','原本を読み込んでいます…'));try{const r=await api('original',{fileId:src.fileId});const bytes=Uint8Array.from(atob(r.base64),c=>c.charCodeAt(0));if(state.originalUrl)URL.revokeObjectURL(state.originalUrl);state.originalUrl=URL.createObjectURL(new Blob([bytes],{type:r.mime}));const e=document.createElement(r.mime==='application/pdf'?'iframe':'img');if(e.tagName==='IFRAME'){e.title='範囲表の原本';e.src=state.originalUrl+'#page='+src.page;}else{e.alt='範囲表の原本';e.src=state.originalUrl;}$('sourcePreview').replaceChildren(e);}catch(e){$('sourcePreview').replaceChildren(text('p',e.message+' 「Driveで開く」からも確認できます。'));}finally{$('loadOriginal').disabled=false;}}
   $('school').onchange=e=>{state.school=e.target.value;renderList($('cards'),state.mode);if(state.previous)renderList($('previousCards'),'previous');};$('previousButton').onclick=()=>{state.previous=!state.previous;$('previousContent').hidden=!state.previous;$('previousButton').textContent=state.previous?'前回のテスト範囲を閉じる':'前回のテスト範囲を見る';if(state.previous)renderList($('previousCards'),'previous');};
   $('connectionButton').onclick=()=>{$('apiUrl').value=state.api;$('connectionError').textContent='';$('connectionDialog').showModal();};
@@ -67,8 +110,9 @@
   $('importFile').onchange=async e=>{const file=e.target.files[0];if(!file)return;try{if(file.size>5*1024*1024)throw Error('JSONは5MBまでです。');if(state.connected)throw Error('共有接続中はJSONを開けません。共有データを保護するため、別の未接続画面で確認してください。');const tests=C.importData(JSON.parse(await file.text()));state.tests=tests;state.local=true;state.mode='upcoming';state.school='';state.subject='social';render();toast('確認用データを読み込みました。教科を選んでください。');}catch(err){toast(err.message);}finally{e.target.value='';}};
   $('exportButton').onclick=()=>download();$('editorClose').onclick=()=>{if(state.busy)return;if(!state.dirty||window.confirm('保存していない変更があります。編集画面を閉じますか？'))$('editorDialog').close();};$('editorDialog').addEventListener('close',()=>{state.edit=null;if(state.originalUrl){URL.revokeObjectURL(state.originalUrl);state.originalUrl='';}});$('editorDialog').addEventListener('cancel',e=>{e.preventDefault();$('editorClose').click();});$('editorForm').onsubmit=e=>e.preventDefault();$('publishButton').onclick=()=>save();$('editorForm').addEventListener('input',()=>{state.dirty=true;});$('loadOriginal').onclick=loadOriginal;
   $('newButton').onclick=()=>{if(!state.connected)return;$('uploadError').textContent='';$('uploadDialog').showModal();};$('uploadClose').onclick=()=>$('uploadDialog').close();$('uploadForm').onsubmit=e=>e.preventDefault();$('uploadButton').onclick=async()=>{if(state.busy)return;const file=$('uploadFile').files[0];if(!file||!['application/pdf','image/jpeg','image/png'].includes(file.type)||file.size>10*1024*1024){$('uploadError').textContent='10MBまでのPDF・JPEG・PNGを選んでください。';return;}state.busy=true;$('uploadButton').disabled=true;$('uploadError').textContent='アップロード中です…';try{const base64=await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(reader.result.split(',')[1]);reader.onerror=reject;reader.readAsDataURL(file);});const requestId=$('uploadFile').dataset.requestId||crypto.randomUUID();$('uploadFile').dataset.requestId=requestId;const r=await api('upload',{base64,name:file.name,mime:file.type,requestId});$('uploadDialog').close();delete $('uploadFile').dataset.requestId;const subjects={};openEditor({id:'test-'+crypto.randomUUID(),school:'',kana:'',grade:state.grade,year:C.yearOf(state.today),testName:'',status:'draft',version:0,reviewed:false,issues:[],source:{fileId:r.file.id,name:r.file.name,page:1},subjects});}catch(e){$('uploadError').textContent=e.message;}finally{state.busy=false;$('uploadButton').disabled=false;}};$('uploadFile').onchange=()=>delete $('uploadFile').dataset.requestId;
-  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&!state.edit){state.today=C.todayJst();if(state.connected)refresh(true);else render();}});setInterval(()=>{if(state.edit)return;const current=C.todayJst();if(current!==state.today){state.today=current;if(state.connected)refresh(true);else render();}},30000);
+  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&!state.edit){state.today=C.todayJst();if(state.connected)refresh(true);else render();if(state.campus&&!state.campusLoading)setCampus(state.campus);}});setInterval(()=>{if(state.edit)return;const current=C.todayJst();if(current!==state.today){state.today=current;if(state.connected)refresh(true);else render();}},30000);
   // Private downloadable trial embeds data here; the public GitHub page contains no school records.
   if(window.RANGE_TRIAL_DATA){state.tests=C.importData(window.RANGE_TRIAL_DATA);state.local=true;state.mode='upcoming';}
-  render();if(state.api)refresh(true);
+  render();loadCampuses();if(state.api)refresh(true);
 })();
+

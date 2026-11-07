@@ -32,27 +32,24 @@
       if (typeof s.range!=='string'||s.range.length>12000||typeof s.points!=='string'||s.points.length>6000) errors.push(SUBJECTS[code]+'の範囲・ポイントを確認してください。');
       if (s.date && !validDate(s.date)) errors.push(SUBJECTS[code]+'の試験日が不正です。');
       if (validDate(s.date) && yearOf(s.date)!==test.year) errors.push(SUBJECTS[code]+'の試験日と年度が一致しません。');
-      if (publish) {
-        if (!validDate(s.date)) errors.push(SUBJECTS[code]+'の試験日を入力してください。');
-        if (!(s.range||'').trim() && s.noRange!==true) errors.push(SUBJECTS[code]+'の範囲を入力するか「原本に記載なし」を確認してください。');
-        if (/要確認|要原本確認|読み切れ/.test(s.range||'')) errors.push(SUBJECTS[code]+'の範囲に要確認の記載が残っています。');
-      }
     });
-    if (publish && test.reviewed!==true) errors.push('原本との照合を確認してください。');
-    if (publish && Array.isArray(test.issues) && test.issues.length) errors.push('要確認事項をすべて解決してください。');
     return errors;
   }
-  function sortCards(a,b) { return (a.subject.date||'9999').localeCompare(b.subject.date||'9999') || (a.test.kana||a.test.school).localeCompare(b.test.kana||b.test.school,'ja') || a.test.id.localeCompare(b.test.id); }
+  function scopeText(value) {
+    if(typeof value!=='string'||!value.trim()) return '不明';
+    return value.replace('※薄い印の除外問題番号は要確認。原本1ページの数学欄を参照。','※印のある除外問題の番号：不明（原本を確認してください）。').replace(/要原本確認|要確認|読み取り不能|読み取れません/g,'不明');
+  }
+  function displayRange(subject) { return subject.noRange&&!subject.range?.trim()?'原本に範囲の記載なし':scopeText(subject.range); }
+  function sortCards(a,b) { return (validDate(a.subject.date)?a.subject.date:'9999').localeCompare(validDate(b.subject.date)?b.subject.date:'9999') || (a.test.kana||a.test.school).localeCompare(b.test.kana||b.test.school,'ja') || a.test.id.localeCompare(b.test.id); }
   function select(tests, opts) {
     const {grade,subject,school='',mode='upcoming',today=todayJst()}=opts;
     if (![1,2,3].includes(grade) || !Object.hasOwn(SUBJECTS,subject)) return [];
     const rows=tests.filter(t=>t.year===yearOf(today)&&t.grade===grade&&(!school||t.school===school)&&t.subjects[subject])
       .map(t=>({test:t,subject:t.subjects[subject]}));
-    if(mode==='draft') return rows.filter(r=>r.test.status==='draft').sort(sortCards);
-    const published=rows.filter(r=>r.test.status==='published'&&validDate(r.subject.date));
-    if(mode==='upcoming') return published.filter(r=>r.subject.date>=today).sort(sortCards);
+    // Legacy draft/published flags remain readable; neither flag is an approval gate.
+    if(mode!=='previous') return rows.filter(r=>!validDate(r.subject.date)||r.subject.date>=today).sort(sortCards);
     const latest=new Map();
-    published.filter(r=>r.subject.date<today).forEach(r=>{const old=latest.get(r.test.school);if(!old||sortCards(old,r)<0)latest.set(r.test.school,r);});
+    rows.filter(r=>validDate(r.subject.date)&&r.subject.date<today).forEach(r=>{const old=latest.get(r.test.school);if(!old||sortCards(old,r)<0)latest.set(r.test.school,r);});
     return [...latest.values()].sort(sortCards);
   }
   function importData(value) {
@@ -61,5 +58,5 @@
     value.tests.forEach(t=>{const errors=validate(t,false);if(errors.length)throw Error(t.school+'：'+errors.join(' '));if(ids.has(t.id))throw Error('同じ資料IDが重複しています。');ids.add(t.id);});
     return JSON.parse(JSON.stringify(value.tests));
   }
-  return {SUBJECTS,todayJst,yearOf,validDate,validate,sortCards,select,importData};
+  return {SUBJECTS,todayJst,yearOf,validDate,validate,scopeText,displayRange,sortCards,select,importData};
 });

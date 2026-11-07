@@ -74,7 +74,7 @@ function doPost(e) {
 
 function rangeSave_(ss,b,props) {
   rangeRequestId_(b.requestId);
-  var t=b.test;rangeValidate_(t,!!t&&t.status==='published');
+  var t=b.test;rangeValidate_(t,false);
   if(!Number.isInteger(b.expectedVersion)||b.expectedVersion<0)rangeFail_('INVALID','版番号が不正です。');
   var rows=rangeReadTests_(ss), old=rows.find(function(r){return r.test.id===t.id;}),hash=rangeHash_(JSON.stringify({test:t,expectedVersion:b.expectedVersion}));
   if(old&&old.requestId===b.requestId){if(old.requestHash!==hash)rangeFail_('UNCERTAIN_WRITE','前回と同じ送信IDで入力内容が変更されています。入力内容をJSONに退避してから、共有データを更新して確認してください。');return {ok:true,test:old.test,replayed:true};}
@@ -143,7 +143,7 @@ function rangeFail_(code,message){var err=Error(message);err.rangeCode=code;thro
 function rangeJson_(data){return ContentService.createTextOutput(JSON.stringify(data)).setMimeType(ContentService.MimeType.JSON);}
 function rangeCleanTest_(t){return {id:t.id,school:t.school.trim(),kana:typeof t.kana==='string'?t.kana.trim():t.school.trim(),grade:t.grade,year:t.year,testName:t.testName.trim(),status:t.status,version:t.version||0,reviewed:t.reviewed===true,issues:t.issues.slice(),subjects:JSON.parse(JSON.stringify(t.subjects)),source:t.source?{fileId:t.source.fileId,name:t.source.name||'',page:t.source.page||1}:null};}
 
-// 以下は、画面側と同じ入力検証です。ブラウザーのチェックを回避しても登録条件は変わりません。
+// 基本的な形式のみ検証します。不明な箇所や照合の有無で表示・保存を止めません。
 function rangeValidate_(test,publish){
   var errors=rangeValidationErrors_(test,publish);if(errors.length)rangeFail_('VALIDATION',errors.join('\n'));
 }
@@ -167,9 +167,6 @@ function rangeValidationErrors_(test,publish){
     if(typeof s.range!=='string'||s.range.length>12000||typeof s.points!=='string'||s.points.length>6000)errors.push(subjects[code]+'の範囲・ポイントを確認してください。');
     if(s.date&&!dateOk(s.date))errors.push(subjects[code]+'の試験日が不正です。');
     if(dateOk(s.date)&&yearOf(s.date)!==test.year)errors.push(subjects[code]+'の試験日と年度が一致しません。');
-    if(publish){if(!dateOk(s.date))errors.push(subjects[code]+'の試験日を入力してください。');if(!(s.range||'').trim()&&s.noRange!==true)errors.push(subjects[code]+'の範囲を確認してください。');if(/要確認|要原本確認|読み切れ/.test(s.range||''))errors.push(subjects[code]+'の範囲に要確認の記載が残っています。');}
   });
-  if(publish&&test.reviewed!==true)errors.push('原本との照合を確認してください。');
-  if(publish&&Array.isArray(test.issues)&&test.issues.length)errors.push('要確認事項をすべて解決してください。');
   return errors;
 }
